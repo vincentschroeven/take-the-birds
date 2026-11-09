@@ -660,7 +660,7 @@ function checkEnding(T){if(clockT()<START_AT+1||shownN<2)return false;
   else if(tp.x>HOUSE_BOX.x0-0.85&&tp.y>-0.15&&sp<0.9)type='arrive';
   else if(tp.y<-1.35)type='sink';
   if(!type)return false;
-  ending={type,t0:clockT()};T.steps=1e9;T.infinite=true;T.energy=1;phase='show';
+  ending={type,t0:clockT()};gcEvent('ending-'+type);T.steps=1e9;T.infinite=true;T.energy=1;phase='show';
   const extra=Math.round((massOf(T.g)/BASE_MASS-1)*100);
   say(type==='crash'?'Impact velocity: '+nf(T.W.hit)+' m/s. Structural failure. House collapsed.'
      :type==='arrive'?'Destination reached. Body width: '+nf(bodyWidth(T.W))+' m. Door width: 0.36 m. Entry not possible.'
@@ -962,7 +962,7 @@ syncOut();
     const c=txt.indexOf(': ');return c>0&&v?'<span class="k">'+esc(txt.slice(0,c+1))+'</span>'+esc(txt.slice(c+1)):esc(txt);}).join('\n');
   function finish(){if(done)return;done=true;clearTimeout(timer);$('bootCredit').classList.remove('pending');
     intro.innerHTML=introHTML(INTRO.length);$('bBoot').hidden=false;try{$('bBoot').focus({preventScroll:true});}catch(e){}}
-  function go(){finish();document.documentElement.style.overflow='';el.hidden=true;startRun();} // harde cut naar het veld, en de run begint
+  function go(){gcEvent('start');finish();document.documentElement.style.overflow='';el.hidden=true;startRun();} // harde cut naar het veld, en de run begint
   $('bBoot').addEventListener('click',e=>{e.stopPropagation();go();});
   if(reduce){finish();}
   else{
@@ -985,5 +985,8 @@ E=null;cur={trial:makeTrial(pl,{freq:0.5,limbs:[]},1)};requestAnimationFrame(loo
 })();
 </script>
 
+<script>document.addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('a.buy,#bAgain');if(t)gcEvent(t.id==='bAgain'?'try-again':'buy');},true);</script>
+<script>function gcEvent(n){try{if(window.goatcounter&&window.goatcounter.count)window.goatcounter.count({path:'take-the-birds/'+n,title:n,event:true});}catch(e){}}</script>
+<script data-goatcounter="https://dasisland.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
