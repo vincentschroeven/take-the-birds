@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Das Island – Take the birds. An artificial life simulation: a self-learning organism tries to reach home across a field of mud.">
+<meta property="og:title" content="Das Island – Take the birds · Artificial Life Simulation">
+<meta property="og:description" content="Press start to release a self-learning and evolving organism. Every outcome will be different.">
+<meta property="og:image" content="https://vincentschroeven.github.io/take-the-birds/og.jpg">
+<meta property="og:url" content="https://vincentschroeven.github.io/take-the-birds/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Artificial Life Simulation</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: één groot podium (de proef), daaronder een smalle meetbank met knoppen, meters en logboek */
+:root{
+  --bg:#e9e7e2; --stage:#f4f3ef; --fg:#1c1d1f; --muted:#6c6b66; --line:#cfccc4;
+  --mud:#6b5a45; --mudtop:#4a3d2f; --body:#1c1d1f; --accent:#c2410c; --good:#3f6212;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141516; --stage:#1b1c1e; --fg:#ecebe6; --muted:#8f8d87; --line:#33343a;
+  --mud:#4a3d30; --mudtop:#2c241c; --body:#ecebe6; --accent:#f97316; --good:#a3e635; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141516; --stage:#1b1c1e; --fg:#ecebe6; --muted:#8f8d87; --line:#33343a;
+  --mud:#4a3d30; --mudtop:#2c241c; --body:#ecebe6; --accent:#f97316; --good:#a3e635; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,4.4vw,44px);letter-spacing:-0.02em;margin:0;line-height:1;text-wrap:balance}
+.sub{color:var(--muted);max-width:60ch;line-height:1.5;margin:0}
+.stage{position:relative;background:#ebe8e1;border:1px solid var(--line);border-radius:4px;overflow:hidden;color:#231d18}
+.stage .hud .lbl,.stage .verdict{color:#6f685f}
+.stage .mode{color:#6f685f;border-color:#cdc7bc}
+.stage .mode.grab{color:#231d18;border-color:#231d18}
+.song{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center}
+.song .time{font-variant-numeric:tabular-nums;color:var(--muted);min-width:9ch}
+.track{position:relative;height:18px;min-width:0}
+.track .sec{display:none}
+#bStart[hidden],.stats[hidden]{display:none}
+.track .bar{position:absolute;left:0;right:0;top:8px;height:2px;background:var(--line)}
+.track .fill{position:absolute;left:0;top:8px;height:2px;background:var(--fg);width:0}
+.track .sec{position:absolute;top:0;font-size:10px;letter-spacing:.06em;color:var(--muted);white-space:nowrap;border-left:1px solid var(--line);padding-left:4px;height:12px;line-height:12px;overflow:hidden}
+.track .sec.on{color:var(--fg);border-color:var(--fg)}
+@media (max-width:640px){.track .sec{display:none}.song{grid-template-columns:auto minmax(0,1fr)}.song .buy{grid-column:1/-1;justify-self:start}}
+canvas#world{display:block;width:100%;aspect-ratio:16/9;max-width:100%}
+.hud{position:absolute;inset:12px 14px auto 14px;display:flex;justify-content:space-between;pointer-events:none;gap:12px}
+.hud .big{font-family:var(--display);font-weight:700;font-size:clamp(18px,3vw,30px);line-height:1;font-variant-numeric:tabular-nums}
+.hud .lbl{text-transform:uppercase;letter-spacing:.12em;font-size:10px;color:var(--muted)}
+.hud .r{text-align:right}
+.mode{display:inline-block;margin-top:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:2px;color:var(--muted)}
+.mode.grab{color:var(--accent);border-color:var(--accent)}
+.stage.clean .hud{display:none}
+@media (max-width:700px){
+  .hud{position:static;inset:auto;padding:10px 12px 12px;border-top:1px solid #cdc7bc;align-items:flex-start}
+  .hud .big{font-size:20px}
+  .stage .mode{font-size:11px;max-width:none}
+  #hTime{display:none}
+  .caption{bottom:auto;top:58%;width:92%;font-size:19px}
+  .caption.sci{top:auto;bottom:5%;font-size:12px;width:94%}
+  .press{bottom:auto;top:52%;font-size:18px;width:88%}
+}
+.verdict{margin-top:10px;font-family:var(--display);font-size:clamp(13px,1.6vw,17px);font-weight:400;color:var(--muted);min-height:1.3em}
+.bench{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.bench{grid-template-columns:minmax(0,1fr)}}
+.panel{border-top:2px solid var(--fg);padding-top:10px;display:grid;gap:10px;align-content:start;min-width:0}
+.panel h2{font-family:var(--display);font-size:15px;font-weight:700;margin:0;letter-spacing:-.01em}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;font-size:12px;background:transparent;color:var(--fg);border:1px solid var(--fg);border-radius:2px;padding:6px 10px;cursor:pointer}
+button:hover{background:var(--fg);color:var(--bg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.sl{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12px}
+label.sl input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+label.sl output{font-variant-numeric:tabular-nums;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+.stat .v{font-family:var(--display);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat .k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+canvas#spark{width:100%;height:70px;display:block}
+ol.log{list-style:none;margin:0;padding:0;max-height:220px;overflow:auto;display:grid;gap:4px;font-size:12px}
+ol.log li{display:grid;grid-template-columns:4.5em 1fr;gap:8px;line-height:1.4}
+ol.log .n{color:var(--muted);font-variant-numeric:tabular-nums}
+ol.log .t-grow{color:var(--fg)} ol.log .t-far,ol.log .t-home{color:var(--accent)} ol.log .t-deep{color:var(--muted)}
+.dial{display:grid;gap:6px}
+.dial .ends{display:flex;justify-content:space-between;gap:16px;font-size:11px;color:var(--muted);line-height:1.4}
+.dial .ends span{display:grid;gap:2px;max-width:48%}
+.dial .ends span:last-child{text-align:right}
+.dial .ends b{font-family:var(--display);font-size:15px;color:var(--fg);font-weight:700}
+.dial input{width:100%;accent-color:var(--accent)}
+.buy{display:inline-block;font:inherit;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--fg);border:1px solid var(--fg);border-radius:2px;padding:6px 10px;text-decoration:none;white-space:nowrap}
+.buy:hover{background:var(--fg);color:var(--bg)}
+.buy{display:inline-grid;gap:3px;justify-items:start;line-height:1.2}
+.buy .who{text-transform:none;letter-spacing:.02em;font-size:11px;opacity:.75}
+.hud>div:first-child{display:none}
+.hud{justify-content:flex-end}
+.again[hidden]{display:none}
+.again{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:14px;text-align:center;padding:16px;background:rgba(235,232,225,.55)}
+.again p{margin:0;font-family:var(--display);font-size:clamp(20px,3.4vw,40px);color:#231d18;max-width:24ch;line-height:1.2;text-wrap:balance}
+.again .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.again button,.again .buy{background:#ebe8e1;color:#231d18;border-color:#231d18}
+.again button.primary{background:#c2410c;border-color:#c2410c;color:#fff}
+.boot[hidden]{display:none}
+.boot{position:fixed;inset:0;z-index:50;background:#ebe8e1;color:#231d18;display:grid;align-content:safe center;overflow-y:auto;
+  padding-block:max(24px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-bottom,0px));
+  padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));cursor:pointer;transition:opacity 1.2s ease}
+.boot.out{opacity:0;pointer-events:none}
+.boot .inner{width:min(100%,640px);margin:0 auto;display:grid;gap:18px}
+.boot .credit{display:grid;gap:4px}
+.boot .artist{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#6f685f}
+.boot .song-t{font-family:var(--display);font-weight:800;font-size:clamp(30px,5.5vw,50px);letter-spacing:-.02em;line-height:1}
+.boot .clip-t{font-family:var(--display);font-size:clamp(16px,2.4vw,22px);color:#6f685f}
+.boot pre{margin:0;font-family:var(--mono);font-size:clamp(11px,1.4vw,13px);line-height:1.65;white-space:pre-wrap;min-height:11.5em}
+.boot pre .k{color:#6f685f}
+.boot .intro{font-family:var(--display);font-size:clamp(15px,1.8vw,18px);line-height:1.45;display:grid;gap:.3em;min-height:9em;text-wrap:pretty}
+.boot .intro p{margin:0}
+.boot .boot-press{position:static;transform:none;justify-self:start;margin-top:2px;font-size:clamp(18px,2.4vw,26px)}
+.boot .boot-press[hidden]{display:none}
+.boot pre .cur{display:inline-block;width:.6em;height:1em;background:#231d18;vertical-align:-2px;animation:blink 1s steps(1) infinite}
+.boot .skip{font-family:var(--mono);font-size:11px;color:#6f685f;letter-spacing:.06em}
+.boot .credit,.boot pre,.boot .skip{transition:opacity .8s ease}
+.boot .pending{opacity:0}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.boot,.boot .credit,.boot pre{transition:none}.boot pre .cur{animation:none}}
+.credit-line{font-size:11px;color:var(--muted);letter-spacing:.04em;margin:0}
+.hint{color:var(--muted);font-size:11px;line-height:1.5;margin:0}
+.seed{font-variant-numeric:tabular-nums}
+.story{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,0.8fr);gap:24px;border-top:2px solid var(--fg);padding-top:14px}
+@media (max-width:860px){.story{grid-template-columns:minmax(0,1fr)}}
+.story h2{font-family:var(--display);font-size:18px;font-weight:700;margin:0 0 8px;letter-spacing:-.01em}
+.story p,.story li{line-height:1.6;margin:0 0 8px;max-width:62ch}
+.story ul{margin:0;padding-left:1.1em}
+.caption{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);width:min(78%,60ch);text-align:center;font-family:var(--display);font-weight:400;
+  font-size:clamp(19px,3.4vw,42px);line-height:1.25;color:#231d18;opacity:0;transition:opacity .6s ease;pointer-events:none;text-wrap:balance}
+.caption span{background:rgba(235,232,225,.88);box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:2px 8px}
+.caption.on{opacity:1}
+.caption.sci{font-family:var(--mono);font-weight:400;font-size:clamp(12px,1.35vw,16px);line-height:1.6;letter-spacing:.01em;width:min(92%,100ch);bottom:6%}
+.caption.sci span{padding:3px 8px}
+.press{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);width:min(82%,34ch);font-family:var(--display);font-weight:400;
+  font-size:clamp(19px,3vw,36px);line-height:1.25;text-wrap:balance;color:#231d18;background:rgba(235,232,225,.9);
+  border:1.5px solid #231d18;border-radius:3px;padding:.5em .8em;cursor:pointer;transition:background .2s,color .2s}
+.press:hover{background:#231d18;color:#ebe8e1}
+.press:focus-visible{outline:2px solid #c2410c;outline-offset:3px}
+.press{width:auto;max-width:88%;display:grid;gap:.3em;justify-items:center;padding:.55em 1.2em .6em}
+.press[hidden]{display:none}
+.press b{font-weight:800;letter-spacing:.08em}
+.press span{font-family:var(--mono);font-size:max(11px,.42em);letter-spacing:.1em}
+@media (prefers-reduced-motion:reduce){.caption{transition:none}}
+.stage .mode{text-transform:none;letter-spacing:.02em;font-size:12px;max-width:46ch;line-height:1.4;white-space:normal}
+.stage .learn{margin-top:4px;font-size:12px;color:#231d18;max-width:44ch;line-height:1.45;min-height:1.4em}
+.stage.clean .learn{display:none}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+
+<div class="boot" id="boot" role="dialog" aria-label="Opening sequence">
+  <div class="inner">
+    <div class="credit pending" id="bootCredit">
+      <span class="artist">Das Island</span>
+      <span class="song-t">Take the birds</span>
+      <span class="clip-t">Artificial Life Simulation</span>
+    </div>
+    <div class="intro" id="bootIntro" aria-live="polite"></div>
+    <button class="press boot-press" id="bBoot" hidden><b>PRESS START</b><span>initiate artificial life simulation</span></button>
+  </div>
+</div>
+<div class="wrap">
+  <header>
+    <h1>Artificial Life Simulation</h1>
+      </header>
+
+  <div class="stage" id="stage">
+    <canvas id="world" width="1600" height="900" aria-label="Simulation of the figure in the mud"></canvas>
+    <div class="hud">
+      <div>
+        <div class="lbl" id="hSec">Attempt</div>
+        <div class="big" id="hAttempt">–</div>
+        <span class="mode" id="hMode">on his way home</span>
+        <div class="verdict" id="hVerdict"></div>
+      </div>
+      <div class="r">
+        <div class="lbl">To the house</div>
+        <div class="big" id="hLift">12.0 m</div>
+        <div class="lbl" id="hDepth" style="margin-top:6px">depth 0 cm</div>
+        <div class="lbl" id="hTime" style="margin-top:6px">energy 100%</div>
+        <div class="lbl" id="hFrust" hidden></div>
+      </div>
+    </div>
+    <div class="caption" id="caption" aria-live="polite"></div>
+    <button class="press" id="bPress" hidden><b>PRESS START</b><span>initiate artificial life simulation</span></button>
+    <div class="again" id="again" hidden>
+      <p id="againText">Change the constraints and try again.</p>
+      <div class="row"><button id="bAgain" class="primary">Try again</button><a class="buy" href="https://triplediagnosedtunes.bandcamp.com/album/unknown-yet" target="_blank" rel="noopener"><span class="who">Das Island · “Take the birds”</span><span>Show some love and buy the song</span></a></div>
+    </div>
+  </div>
+
+  <div class="song" aria-label="The song">
+    <button id="bStart" class="primary" hidden>Start</button>
+    <span class="time" id="sTime">0:00 / 3:01</span>
+    <div class="track" id="track"><div class="bar"></div><div class="fill" id="fill"></div></div>
+    <audio id="audio" src="song.mp3" preload="auto"></audio>
+    <a class="buy" href="https://triplediagnosedtunes.bandcamp.com/album/unknown-yet" target="_blank" rel="noopener"><span class="who">Das Island · “Take the birds”</span><span>Show some love and buy the song</span></a>
+  </div>
+
+
+  <div class="bench">
+    <section class="panel" aria-label="The constraints">
+      <h2>The constraints</h2>
+      <div class="dial">
+        <div class="ends"><span><b>Ignorance</b>He keeps trying something new.</span><span><b>Wisdom</b>He builds on what he has learned.</span></div>
+        <input id="sWis" type="range" min="0" max="1" step="0.05" value="0.6" aria-label="Ignorance to wisdom">
+      </div>
+      <div class="dial">
+        <div class="ends"><span><b>Careful</b>Measured, deliberate movements.</span><span><b>Bold</b>Wild, sweeping movements.</span></div>
+        <input id="sBold" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="Careful to bold">
+      </div>
+      <p class="hint">Changes apply from his next attempt. Ignorance uses novelty search: he picks whatever is most new, even if it gets him less far. Wisdom picks what gets him furthest.</p>
+    </section>
+
+    <section class="panel" aria-label="Controls">
+      <h2>Controls</h2>
+      <div class="row">
+        <button id="bPause">Pause</button>
+        <button id="bBest">Show best attempt</button>
+        <button id="bNew">New evolution without music</button>
+      </div>
+      <div class="row" role="group" aria-label="Speed">
+        <button data-speed="1" aria-pressed="true">1×</button>
+        <button data-speed="2">2×</button>
+        <button data-speed="4">4×</button>
+        <button data-speed="0">Fast-forward</button>
+      </div>
+      <div class="row">
+        <button id="bClean" aria-pressed="false">Recording mode</button>
+      </div>
+      <p class="hint">Fast-forward lets him keep evolving in silence while you watch his best attempt. Recording mode hides the counters so you can record a clean image. Evolution <span class="seed" id="seed"></span> can be repeated exactly with the same settings.</p>
+    </section>
+
+    <section class="panel" aria-label="Progress">
+      <h2>Progress</h2>
+      <div class="stats" hidden>
+        <div class="stat"><div class="v" id="vLimbs">0</div><div class="k">Limbs</div></div>
+        <div class="stat"><div class="v" id="vBest">12.0 m</div><div class="k">Closest to home</div></div>
+      </div>
+      <canvas id="spark" width="600" height="140" aria-label="Distance per attempt"></canvas>
+      <p class="hint" id="logEmpty">Every change he keeps is logged here.</p>
+      <ol class="log" id="log"></ol>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/planck@1.4.3/dist/planck.min.js"></script>
+<script>
+// ---- Sisyphus core v3: de modder ----
+function makeRng(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(r){let u=0,v=0;while(u===0)u=r();while(v===0)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+const CFG={TORSO_W:0.56,TORSO_H:0.86,HEAD_R:0.24,START_X:0,HOUSE_X:12,MUD_FROM:-8,MUD_DEPTH:2.4,
+  TRIAL:20,HZ:60,MAX_LIMBS:10,GAIN:4,MAXSPEED:3.5,LIMB_DAMP:3,
+  TORSO_DENS:1.0,LIMB_DENS:2.6,MUD_START:2.9,MUD_END:0.75,DRAG:6,STUCK:-0.12};
+// careful <-> bold: hoe snel, groot en krachtig hij beweegt
+const MOTOR={speed:3.5,gain:4,torque:1,amp:1};
+function setBold(b){MOTOR.speed=2+5*b;MOTOR.gain=3+4*b;MOTOR.torque=0.7+0.9*b;MOTOR.amp=0.75+0.6*b;}
+const HOUSE_BOX={x0:CFG.HOUSE_X+0.4,x1:CFG.HOUSE_X+2.1,h:1.1};
+// modderdichtheid op plek x: hoe lager, hoe zachter (draagt minder)
+let WORLD_SOFT=1,LIMB_CAP=1.4; // LIMB_CAP: hoe lang een ledemaat mag worden; groeit mee met het nummer
+function setWorld(soft,cap){WORLD_SOFT=soft;LIMB_CAP=cap;}
+function setFrustration(){} // frustratie zit nu per poging in de trial zelf // wordt groter tijdens het laatste refrein: de modder wordt zachter
+function mudDensity(x,soft){const t=clamp((x-CFG.START_X)/(CFG.HOUSE_X-1-CFG.START_X),0,1);
+  return (CFG.MUD_START+(CFG.MUD_END-CFG.MUD_START)*Math.pow(t,1.6))/(soft*WORLD_SOFT);}
+function mudBed(){const pts=[];for(let x=CFG.MUD_FROM;x<=CFG.HOUSE_X-1+1e-6;x+=0.5){const t=clamp((x-CFG.START_X)/(CFG.HOUSE_X-1-CFG.START_X),0,1);pts.push({x,y:-(CFG.MUD_DEPTH+3.2*t*t)});}return pts;}
+const inMud=x=>x>CFG.MUD_FROM&&x<CFG.HOUSE_X-1;
+
+function randomLimb(r,g){
+  const nL=g.limbs.length;
+  // soms groeit er een spiegelbeeld van een ledemaat die nog alleen staat: een paar armen of benen
+  const single=g.limbs.map((L,i)=>({L,i})).filter(o=>o.L.parent<0&&o.L.pair==null&&!g.limbs.some(M=>M.pair===o.i));
+  if(single.length&&r()<0.55){const o=single[Math.floor(r()*single.length)],L=o.L;const m=clone(L);
+    m.angle=Math.PI-L.angle;m.pair=o.i;m.walk.phase=L.walk.phase+Math.PI;m.grab.phase=L.grab.phase+Math.PI;return m;}
+  const parent=(nL>0&&r()<0.4)?Math.floor(r()*nL):-1;
+  const m=()=>({amp:r()*1.2,phase:r()*Math.PI*2,offset:(r()-0.5)*1.2});
+  const lc=Math.max(0.22,LIMB_CAP);return {parent,angle:r()*Math.PI*2,bend:(r()-0.5)*1.5,len:Math.min(lc,0.2+r()*(lc-0.2)),w:Math.min(0.08+r()*0.1,0.05+lc*0.1),torque:60+r()*180,walk:m(),grab:m()};
+}
+function newGenome(r){return {freq:0.3+r()*0.5,limbs:[]};}
+function clone(g){return JSON.parse(JSON.stringify(g));}
+
+const LIMB_KEYS=[['len',0.12,0.2,1.4],['w',0.03,0.05,0.25],['torque',30,20,320],['angle',0.3,-1e9,1e9],['bend',0.3,-2,2],
+  ['walk.amp',0.25,0,1.6],['walk.phase',0.6,-1e9,1e9],['walk.offset',0.3,-1.5,1.5],
+  ['grab.amp',0.25,0,1.6],['grab.phase',0.6,-1e9,1e9],['grab.offset',0.3,-1.5,1.5]];
+const getK=(o,k)=>k.includes('.')?o[k.split('.')[0]][k.split('.')[1]]:o[k];
+const setK=(o,k,v)=>{if(k.includes('.'))o[k.split('.')[0]][k.split('.')[1]]=v;else o[k]=v;};
+function flat(g){const v=[g.freq];for(const L of g.limbs)for(const [k] of LIMB_KEYS)v.push(getK(L,k));return v;}
+function unflat(g,v){const c=clone(g);c.freq=clamp(v[0],0.15,1.2);let i=1;
+  for(const L of c.limbs)for(const [k,,lo,hi] of LIMB_KEYS)setK(L,k,clamp(v[i++],lo,k==='len'?Math.max(lo,Math.min(hi,LIMB_CAP)):hi));return c;}
+function scales(g){const s=[0.12];for(const L of g.limbs)for(const [,sc] of LIMB_KEYS)s.push(sc);return s;}
+
+function edgePoint(a){
+  const hw=CFG.TORSO_W/2,hh=CFG.TORSO_H/2,cx=Math.cos(a),cy=Math.sin(a);
+  const s=Math.min(Math.abs(cx)>1e-6?hw/Math.abs(cx):1e9,Math.abs(cy)>1e-6?hh/Math.abs(cy):1e9);
+  return {x:cx*s,y:cy*s};
+}
+
+// Elk lichaamsdeel krijgt meetpunten met een stukje oppervlak; onder het modderoppervlak
+// geven die opwaartse draagkracht en weerstand.
+function samplePoints(w,h,nx,ny){const pts=[],a=w*h/(nx*ny);
+  for(let i=0;i<nx;i++)for(let j=0;j<ny;j++)pts.push({x:-w/2+w*(i+0.5)/nx,y:-h/2+h*(j+0.5)/ny,a});return pts;}
+
+function buildWorld(pl,g){
+  const V=pl.Vec2;
+  const world=new pl.World({gravity:V(0,-9.81)});
+  const ground=world.createBody();
+  const D=CFG.MUD_DEPTH,H=CFG.HOUSE_X;
+  ground.createFixture(pl.Edge(V(-40,0),V(CFG.MUD_FROM,0)),{friction:0.9});
+  // de bodem loopt schuin naar beneden: vlak bij het huis is de modder het diepst
+  const bed=mudBed();
+  ground.createFixture(pl.Edge(V(CFG.MUD_FROM,0),V(bed[0].x,bed[0].y)),{friction:0.9});
+  for(let i=0;i<bed.length-1;i++)ground.createFixture(pl.Edge(V(bed[i].x,bed[i].y),V(bed[i+1].x,bed[i+1].y)),{friction:0.4});
+  ground.createFixture(pl.Edge(V(H-1,bed[bed.length-1].y),V(H-1,0)),{friction:0.2});
+  ground.createFixture(pl.Edge(V(H-1,0),V(H+30,0)),{friction:0.9});
+  const house=world.createBody({position:V((HOUSE_BOX.x0+HOUSE_BOX.x1)/2,HOUSE_BOX.h/2)});
+  house.createFixture(pl.Box((HOUSE_BOX.x1-HOUSE_BOX.x0)/2,HOUSE_BOX.h/2),{friction:0.6});house.setUserData('house');
+  const filt={filterGroupIndex:-1,friction:0.9};
+  const y0=0.9;
+  const torso=world.createDynamicBody({position:V(CFG.START_X,y0),angularDamping:1});
+  torso.createFixture(pl.Box(CFG.TORSO_W/2,CFG.TORSO_H/2),Object.assign({density:CFG.TORSO_DENS},filt));
+  torso.createFixture(pl.Circle(V(0,CFG.TORSO_H/2+CFG.HEAD_R*0.85),CFG.HEAD_R),Object.assign({density:CFG.TORSO_DENS*0.6},filt));
+  torso.setUserData('body');
+  const tPts=samplePoints(CFG.TORSO_W,CFG.TORSO_H,4,3);
+  const hy=CFG.TORSO_H/2+CFG.HEAD_R*0.85,ha=Math.PI*CFG.HEAD_R*CFG.HEAD_R/2;
+  tPts.push({x:0,y:hy-0.1,a:ha},{x:0,y:hy+0.1,a:ha});
+  const floaters=[{body:torso,pts:tPts}];
+  const parts=[],joints=[];
+  g.limbs.forEach((L,i)=>{
+    let anchor,dirA;
+    if(L.parent<0||L.parent>=i){const p=edgePoint(L.angle);anchor=V(CFG.START_X+p.x,y0+p.y);dirA=L.angle;}
+    else{const P=parts[L.parent];anchor=V(P.end.x,P.end.y);dirA=P.dirA+L.bend;}
+    const cx=anchor.x+Math.cos(dirA)*L.len/2,cy=anchor.y+Math.sin(dirA)*L.len/2;
+    const b=world.createDynamicBody({position:V(cx,cy),angle:dirA,angularDamping:CFG.LIMB_DAMP});
+    b.createFixture(pl.Box(L.len/2,L.w/2),Object.assign({density:CFG.LIMB_DENS},filt));
+    b.setUserData('body');
+    const parentBody=(L.parent<0||L.parent>=i)?torso:parts[L.parent].body;
+    const j=world.createJoint(pl.RevoluteJoint({enableMotor:true,maxMotorTorque:L.torque*MOTOR.torque,motorSpeed:0,enableLimit:true,lowerAngle:-2.4,upperAngle:2.4},parentBody,b,anchor));
+    parts.push({body:b,end:{x:anchor.x+Math.cos(dirA)*L.len,y:anchor.y+Math.sin(dirA)*L.len},dirA,L});
+    joints.push(j);
+    floaters.push({body:b,pts:samplePoints(L.len,L.w,4,1)});
+  });
+  const W={world,torso,parts,joints,floaters,hit:0};
+  world.on('begin-contact',ct=>{const A=ct.getFixtureA().getBody(),B=ct.getFixtureB().getBody();
+    const other=A.getUserData()==='house'?B:B.getUserData()==='house'?A:null;
+    if(other&&other.getUserData()==='body'){const v=torso.getLinearVelocity();W.hit=Math.max(W.hit,Math.hypot(v.x,v.y));}}); // snelheid van het hele lijf bij de botsing
+  return W;
+}
+
+function applyMud(pl,W,soft){
+  for(const f of W.floaters){const b=f.body;
+    for(const p of f.pts){
+      const wp=b.getWorldPoint(pl.Vec2(p.x,p.y));
+      if(wp.y>=0||!inMud(wp.x))continue;
+      const rho=mudDensity(wp.x,soft);
+      const sub=Math.min(1,-wp.y/0.08); // zachte overgang aan het oppervlak
+      const v=b.getLinearVelocityFromWorldPoint(wp);
+      const fx=-CFG.DRAG*rho*p.a*v.x*sub, fy=(rho*10*p.a-CFG.DRAG*rho*v.y*p.a)*sub;
+      b.applyForce(pl.Vec2(fx,fy),wp,true);
+    }}
+}
+
+function makeTrial(pl,g,soft){
+  const W=buildWorld(pl,g);
+  const T={W,g,step:0,steps:CFG.TRIAL*CFG.HZ,maxX:CFG.START_X,depth:0,maxDepth:0,maxH:0,mode:'walk',done:false,score:0,arrived:false,hit:0,
+    energy:1,spent:0,infinite:false,frust:0,lastX:CFG.START_X,lastT:0}; // energie: bewegen kost energie; is ze op, dan valt hij langzaam stil
+  T.tick=function(){
+    if(T.done)return;
+    const t=T.step/CFG.HZ,w=2*Math.PI*g.freq;
+    const tp=W.torso.getPosition();
+    T.depth=Math.max(0,-(tp.y-CFG.TORSO_H/2)); // hoe diep de onderkant van de romp zit
+    T.mode=tp.y<CFG.STUCK?'grab':'walk';
+    const FRUST=T.frust;
+    const low=0.25*(1-FRUST)+0.06*FRUST; // woedend negeert hij zijn vermoeidheid tot hij echt op is
+    const k=T.infinite?1:T.energy<low?Math.pow(Math.max(0,T.energy)/low,0.8):1; // bijna op: zwakker en trager
+    const F2=FRUST*FRUST;
+    W.joints.forEach((j,i)=>{const M=g.limbs[i][T.mode];
+      // flapperen: grotere, snellere slagen en een wild, onregelmatig trillen bovenop zijn patroon
+      const target=M.offset+M.amp*MOTOR.amp*(1+1.1*F2)*Math.sin(w*(1+1.6*F2)*t+M.phase)+F2*1.2*Math.sin(t*(17+i*3.1)+i*2.3)*Math.sin(t*5.3+i);
+      j.setMaxMotorTorque(g.limbs[i].torque*MOTOR.torque*(1+0.8*F2)*k); // bij 0: slap
+      const sp=MOTOR.speed*(1+2.2*F2);j.setMotorSpeed(k*clamp(MOTOR.gain*(1+1.2*F2)*(target-j.getJointAngle()),-sp,sp));});
+    applyMud(pl,W,soft);
+    W.world.step(1/CFG.HZ,8,3);
+    T.step++;
+    {const x=W.torso.getPosition().x,now=T.step/CFG.HZ;
+      if(x>T.lastX+0.1){T.lastX=x;T.lastT=now;}
+      const stuck=now-T.lastT>1.2&&now>1.5;
+      T.fte=(T.fte||0)+(stuck?1.6:1)/CFG.HZ;            // de 'frustratieklok' loopt dubbel zo snel als hij vastzit
+      T.frust=clamp(0.015*(Math.exp(T.fte/3.2)-1),0,1);} // exponentieel: eerst nauwelijks, dan snel
+    if(!T.infinite){let work=0;W.joints.forEach(j=>{work+=Math.abs(j.getMotorTorque(CFG.HZ)*j.getJointSpeed());});
+      const cost=(0.06+0.014*Math.sqrt(work)+0.003*g.limbs.length+(T.mode==='grab'?0.02:0))*(1+0.3*FRUST);
+      T.energy=Math.max(0,T.energy-cost/CFG.HZ);if(T.energy<=0)T.spent+=1/CFG.HZ;}
+    if(T.step>CFG.HZ*1.5){
+      T.maxX=Math.max(T.maxX,tp.x);T.maxDepth=Math.max(T.maxDepth,T.depth);
+      if(tp.x>HOUSE_BOX.x0-0.85&&tp.y>-0.15)T.arrived=true;
+      T.maxH=Math.max(T.maxH,tp.y);T.hit=W.hit;
+    }
+    T.score=T.maxX-CFG.START_X;
+    const v=W.torso.getLinearVelocity();
+    if(T.step>=T.steps||(!T.infinite&&T.energy<=0&&T.spent>(T.quick?0.3:2.2)))T.done=true;
+  };
+  return T;
+}
+function evaluate(pl,g,soft){const T=makeTrial(pl,g,soft);T.quick=true;while(!T.done)T.tick();return {score:T.score,maxX:T.maxX,maxDepth:T.maxDepth,maxH:T.maxH,arrived:T.arrived,hit:T.hit,bd:[T.maxX,T.maxDepth*3,T.maxH*3]};}
+
+// Eén personage. Per poging bedenkt hij in stilte K varianten.
+// Wisdom: kiest wat hem het verst brengt en trekt door in die richting.
+// Ignorance: kiest wat het meest nieuw is (novelty search) en durft achteruit te gaan.
+function makeEvolution(pl,opts){
+  const r=makeRng(opts.seed);
+  const E={seed:opts.seed,rng:r,attempt:0,best:newGenome(r),bestScore:-1e9,bestX:0,curX:0,sinceImprove:0,
+    momentum:null,sigma:1,log:[{a:1,t:'start'}],history:[],deepest:0,pending:null,chosen:null,archive:[],
+    maxLimbs:CFG.MAX_LIMBS,boost:0,mutScale:1}; // de shell stuurt deze bij per fase van het nummer
+  E.settings={soft:1,wisdom:opts.wisdom??0.6,growAfter:6,think:24};
+  function novelty(bd){const A=E.archive;if(!A.length)return 3;const d=A.map(a=>Math.hypot(a[0]-bd[0],a[1]-bd[1],a[2]-bd[2])).sort((x,y)=>x-y);
+    const k=Math.min(6,d.length);let s=0;for(let i=0;i<k;i++)s+=d[i];return s/k;}
+  function propose(){
+    const w=E.settings.wisdom,K=E.attempt===0?1:E.settings.think;
+    const grow=E.attempt>0&&(E.best.limbs.length===0||E.sinceImprove>=E.settings.growAfter)&&E.best.limbs.length<Math.min(CFG.MAX_LIMBS,E.maxLimbs);
+    const cands=[];
+    if(E.attempt===0){cands.push({g:clone(E.best),kind:'same'});}
+    else if(grow){for(let i=0;i<K;i++){const c=clone(E.best);c.limbs.push(randomLimb(r,c));cands.push({g:c,kind:'grow'});}}
+    else{
+      const base=flat(E.best),sc=scales(E.best),sig=E.sigma*(E.mutScale||1);
+      const nFollow=E.momentum?Math.round(K*w*0.7):0;
+      for(let i=0;i<K;i++){
+        const follow=i<nFollow;
+        const v=base.map((x,j)=>follow?x+E.momentum[j]*(0.8+0.6*r()):x);
+        const n=follow?1:1+Math.floor(r()*(1+(1-w)*3));
+        for(let q=0;q<n;q++){const j=Math.floor(r()*v.length);const sgn=r()<0.5?-1:1;v[j]+=sgn*sc[j]*sig*(1.4+(1-w)*1.4+Math.abs(gauss(r)));}
+        cands.push({g:unflat(E.best,v),kind:follow?'follow':'explore'});
+      }
+    }
+    E.pending={cands,i:0,grow};
+  }
+  E.think=function(ms){
+    if(!E.pending)propose();
+    const P=E.pending,t0=performance.now();
+    while(P.i<P.cands.length){const c=P.cands[P.i];c.res=evaluate(pl,c.g,1);P.i++;if(performance.now()-t0>ms)break;}
+    if(P.i<P.cands.length)return false;
+    const w=E.settings.wisdom;
+    P.cands.forEach(c=>{c.nov=novelty(c.res.bd);c.mix=w*c.res.maxX+(1-w)*c.nov*2.5+(E.boost||0)*c.nov*2.0;
+      const nl=c.g.limbs[c.g.limbs.length-1];if(c.kind==='grow'&&nl&&nl.pair!=null)c.mix+=0.6;}); // een lichte voorkeur voor paren
+    let bi=0;P.cands.forEach((c,i)=>{if(c.mix>P.cands[bi].mix)bi=i;});
+    E.chosen=Object.assign({},P.cands[bi],{grow:P.grow,considered:P.cands.length});
+    E.pending=null;E.attempt++;return true;
+  };
+  E.commit=function(){
+    const c=E.chosen,x=c.res.maxX,w=E.settings.wisdom,prev=E.curX;
+    const tol=(1-w)*2.2+(E.boost||0)*1.2;
+    const improved=x>E.bestX+0.02;
+    let kept=false;
+    if(x>=prev-tol-1e-9||(c.grow&&x>=prev-0.4-tol)){
+      if(x>prev+0.02&&c.kind!=='grow'&&E.attempt>1){
+        const fb=flat(E.best),d=flat(c.g).map((v,j)=>v-fb[j]);
+        E.momentum=E.momentum&&E.momentum.length===d.length?E.momentum.map((m,j)=>0.5*m+d[j]):d;
+      }
+      if(c.grow){E.momentum=null;E.log.push({a:E.attempt,t:'grow',n:c.g.limbs.length});}
+      if(x>E.bestX){const left=CFG.HOUSE_X-x;if(Math.floor(left)<Math.floor(CFG.HOUSE_X-E.bestX))E.log.push({a:E.attempt,t:'far',v:Math.max(0,left)});E.bestX=x;}
+      if(c.res.maxDepth>E.deepest+0.2){E.deepest=c.res.maxDepth;if(E.deepest>0.6)E.log.push({a:E.attempt,t:'deep',v:E.deepest});}
+      E.best=c.g;E.curX=x;E.bestScore=Math.max(E.bestScore,x);kept=true;
+    }
+    E.archive.push(c.res.bd);if(E.archive.length>240)E.archive.shift();
+    if(improved){E.sinceImprove=0;E.sigma=Math.min(2,E.sigma*1.2);}
+    else{E.sinceImprove++;E.sigma=Math.max(0.75,E.sigma*0.9);if(E.momentum)E.momentum=E.momentum.map(m=>m*0.6);}
+    if(c.grow)E.sinceImprove=0;
+    E.history.push({a:E.attempt,s:Math.min(x,CFG.HOUSE_X),best:Math.min(E.bestX,CFG.HOUSE_X)});
+    return {kept,improved,worse:kept&&x<prev-0.05,prev};
+  };
+  return E;
+}
+if(typeof module!=='undefined')module.exports={makeEvolution,makeTrial,evaluate,CFG,makeRng,setBold,setWorld,setFrustration};
+
+</script>
+<script>
+(function(){
+const pl=window.planck;
+const $=id=>document.getElementById(id);
+const cv=$('world'),cx=cv.getContext('2d');
+const sp=$('spark'),sx=sp.getContext('2d');
+const nf=(v,d=1)=>v.toFixed(d);
+let E,cur=null,paused=true,playing=false,speed=1,frame=0,replay=null,shownLog=0,cam={x:2.5};
+// fase: 'show' (poging loopt), 'rest' (stilstand + nadenken), 'fade' (overgang)
+let phase='rest',phaseT=0,verdict='',fade=0,learn='',status='Just a body and a head.';
+// zichtbare pogingen: telkens zijn beste versie tot nu; tussendoor evolueert hij in stilte verder
+let restClock=0,shownN=0,shownG=null,shownX=0,genSince=0,curWhat=[],curGrow=false,curTries=0,finale=false,clock0=0;
+function clockT(){const a=$('audio');return (playing||a.currentTime>0)&&!songEnded?a.currentTime:(performance.now()-clock0)/1000;}
+// tempo: tegen couplet 4 (2:00) moet hij bijna bij het huis zijn
+// drie fases: ontdekken (stevige grond, één klein stompje), vastlopen (modder wordt zachter), bijna
+// de boog van het nummer:
+//  verse 1-2   (0:15-1:10) chaos: wilde, grote veranderingen die langzaam preciezer worden
+//  chorus-v3   (1:10-2:00) plateaus en doorbraken: de lat gaat met trappen omhoog, telkens samen met ruimte voor een extra ledemaat
+//  verse 4     (2:00-2:08) bijna: hij mag tot vlak bij het huis
+//              (2:08-    ) terugval: de modder geeft plots mee, wat werkte werkt niet meer
+const SETBACK_AT=128;
+function targetX(t){if(t<START_AT)return 0.3;
+  if(t<70)return 0.3+4.5*Math.pow((t-START_AT)/(70-START_AT),0.9);
+  if(t<120)return 4.8+1.3*Math.min(4,Math.floor((t-70)/12.5)+1);
+  if(t<SETBACK_AT)return 11.2;
+  return Math.min(10.4,8.6+(t-SETBACK_AT)*0.08);}
+function phaseSoft(t){return t<70?0.5:t<120?0.5+0.55*(t-70)/50:t<SETBACK_AT?1.05:t<SETBACK_AT+3?1.05+0.55*(t-SETBACK_AT)/3:1.6;}
+function limbCap(t){return Math.min(1.4,0.4+1.0*Math.max(0,(t-START_AT)/135));}
+function applyPhase(){const t=clockT();setWorld(phaseSoft(t)*(1+softAmount()*8),limbCap(t));
+  if(E){const a=Math.max(0,Math.min(1,(t-START_AT)/(70-START_AT)));               // 0 bij de start, 1 op 1:10
+    E.maxLimbs=t<45?1:t<70?2:Math.min(10,2+Math.floor((t-70)/12.5)+1);
+    E.boost=t<70?0.55-0.35*a:t>=SETBACK_AT&&t<SETBACK_AT+20?0.4:0;                 // na de terugval gokt hij weer meer
+    E.mutScale=t<70?1.9-0.9*a:1;}}
+function evolveHidden(budget,force){const t0=performance.now();let n=0;
+  while(performance.now()-t0<budget){if(!force&&E.curX>=targetX(clockT()+6))break;
+    if(E.think(Math.max(1,budget-(performance.now()-t0)))){E.commit();n++;force=false;}}
+  if(n)updatePanel();return n;}
+function startShow(){const g=E.best;const prev=shownG||g;
+  curGrow=!!shownG&&g.limbs.length>shownG.limbs.length;
+  curWhat=shownG?describeList(prev,{g,grow:curGrow,kind:curGrow?'grow':'x'}):[];
+  if(curGrow)curWhat=['an extra limb'];
+  curTries=genSince*E.settings.think;genSince=0;shownN++;shownG=g;
+  cur={trial:makeTrial(pl,g,E.settings.soft)};phase='show';fade=0;}
+const REST=0.9,FADE=0.5,PACE=1.3; // korte adempauze tussen pogingen; de simulatie loopt 1,3 keer sneller dan echte tijd
+let stepAcc=0;function stepsNow(){stepAcc+=PACE*speed;const n=Math.floor(stepAcc);stepAcc-=n;return n;}
+
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function settings(){return {wisdom:+$('sWis').value,bold:+$('sBold').value};}
+function syncOut(){setBold(+$('sBold').value);}
+
+function start(seed){
+  songEnded=false;
+  E=makeEvolution(pl,Object.assign({seed},settings()));setBold(+$('sBold').value);ending=null;sci=[];$('again').hidden=true;sciFlags={};
+  $('seed').textContent='#'+seed;
+  $('log').innerHTML='';shownLog=0;replay=null;$('bBest').textContent='Show best attempt';
+  cur={trial:makeTrial(pl,E.best,E.settings.soft)};
+  phase='rest';phaseT=REST*0.6;verdict='';status='Just a body and a head.';
+  shownN=0;shownG=null;shownX=0;genSince=0;curWhat=[];curGrow=false;finale=false;clock0=performance.now();
+}
+function newSeed(){return Math.floor(Math.random()*1e6);}
+let nextSeed=newSeed(),runNo=1;
+try{runNo=(parseInt(localStorage.getItem('pch-runs')||'0',10)||0)+1;}catch(e){}
+
+['sWis','sBold'].forEach(id=>$(id).addEventListener('input',()=>{syncOut();if(E)E.settings.wisdom=+$('sWis').value;}));
+$('bPause').onclick=()=>{paused=!paused;$('bPause').textContent=paused?'Resume':'Pause';const a=$('audio');if(playing){paused?a.pause():a.play().catch(()=>{});}};
+const SECTIONS=[[0,'intro'],[12,'verse 1'],[37,'verse 2'],[70,'chorus'],[90,'verse 3'],[120,'verse 4'],[153,'last chorus'],[176,'end']];
+const SONG_LEN=181;
+(function(){const tr=$('track');SECTIONS.forEach(([t,n],i)=>{const d=document.createElement('div');d.className='sec';d.style.left=(t/SONG_LEN*100)+'%';
+  const nx=(SECTIONS[i+1]?SECTIONS[i+1][0]:SONG_LEN);d.style.width=((nx-t)/SONG_LEN*100)+'%';d.textContent=n;tr.appendChild(d);});})();
+const START_AT=15; // het object begint pas op 0:15
+const CAPTIONS=[[0,'Objective: reach home.'],[5,'The constraints change behaviour.'],[10,'Observation begins.']];
+let sci=[],sciFlags={},ending=null;
+function say(text,hold){sci.push({text,t0:clockT(),hold:hold||7});}
+let capShown=null;
+function updateCaption(){const t=songT(),el=$('caption');let text=null;
+  if((playing||paused&&t>0)&&t<START_AT){CAPTIONS.forEach(([s0],i)=>{const nx=CAPTIONS[i+1]?CAPTIONS[i+1][0]:START_AT;if(t>=s0&&t<nx-0.5)text=CAPTIONS[i][1];});}
+  else if(E&&sci.length){const c=sci[sci.length-1],ct=clockT();if(ct-c.t0<c.hold)text=c.text;}
+  else if(!E)text=null;
+  el.classList.toggle('sci',!!(E&&t>=START_AT||E&&!playing));
+  if(text!==capShown){if(text){el.innerHTML='<span></span>';el.firstChild.textContent=text;}capShown=text;}
+  el.classList.toggle('on',!!text);}
+function songT(){return (playing||(!songEnded&&$('audio').currentTime>0))?$('audio').currentTime:0;}
+function fmt(t){t=Math.max(0,t);return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');}
+function startRun(){const a=$('audio');$('bPress').hidden=true;
+  try{localStorage.setItem('pch-runs',String(runNo));}catch(e){}
+  start(nextSeed);nextSeed=newSeed();runNo++;updatePanel();a.currentTime=0;resetBirds();spiders=[];birdsT=-1;
+  a.play().then(()=>{playing=true;paused=false;$('bStart').textContent='Stop';$('bPause').textContent='Pause';})
+   .catch(()=>{playing=false;paused=false;$('sTime').textContent='No sound';$('bStart').textContent='Start';});
+}
+$('bStart').onclick=()=>{const a=$('audio');
+  if(playing){a.pause();playing=false;paused=true;$('bStart').textContent='Start';return;}
+  startRun();};
+$('bAgain').onclick=()=>{startRun();};
+$('bPress').onclick=()=>{startRun();};
+$('audio').addEventListener('ended',()=>{playing=false;paused=true;songEnded=true;$('bStart').textContent='Start';if(!ending){$('againText').textContent='The song ended before he got home. Change the constraints and try again.';}$('again').hidden=false;});
+let songEnded=false;
+$('bNew').onclick=()=>{$('bPress').hidden=true;start(newSeed());updatePanel();paused=false;$('bPause').textContent='Pause';};
+$('bClean').onclick=e=>{const on=$('stage').classList.toggle('clean');e.target.setAttribute('aria-pressed',on);};
+$('bBest').onclick=()=>{
+  if(!E)return;
+  if(replay){replay=null;$('bBest').textContent='Show best attempt';return;}
+  replay={trial:makeTrial(pl,E.best,E.settings.soft)};$('bBest').textContent='Back to the evolution';
+};
+document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{if(!E)return;speed=+b.dataset.speed;document.querySelectorAll('[data-speed]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  if(speed===0&&!replay){replay={trial:makeTrial(pl,E.best,E.settings.soft),auto:true};}
+  if(speed>0&&replay&&replay.auto){replay=null;phase='rest';phaseT=REST;}
+});
+
+const PHRASES={freq:['a faster rhythm','a slower rhythm'],len:['longer limbs','shorter limbs'],w:['thicker limbs','thinner limbs'],torque:['more force','less force'],
+  angle:['a limb in a new place','a limb in a new place'],bend:['a different angle in its joints','a different angle in its joints'],
+  'walk.amp':['bigger strokes','smaller strokes'],'walk.phase':['a new timing between its limbs','a new timing between its limbs'],'walk.offset':['a different posture','a different posture'],
+  'grab.amp':['struggling harder in the mud','struggling more gently in the mud'],'grab.phase':['a new rhythm for struggling','a new rhythm for struggling'],'grab.offset':['a new way to push out of the mud','a new way to push out of the mud']};
+function describeList(parent,ch){
+  if(ch.grow)return ['an extra limb'];if(ch.kind==='same')return [];
+  const a=flat(parent),b=flat(ch.g),sc=scales(parent);if(a.length!==b.length)return [];
+  const keys=['freq'];parent.limbs.forEach(()=>LIMB_KEYS.forEach(([k])=>keys.push(k)));
+  const tot={},dir={};keys.forEach((k,i)=>{const d=(b[i]-a[i])/sc[i];tot[k]=(tot[k]||0)+Math.abs(d);dir[k]=(dir[k]||0)+d;});
+  const top=Object.keys(tot).filter(k=>tot[k]>0.15).sort((x,y)=>tot[y]-tot[x]).slice(0,2);
+  if(!top.length)return ['almost the same as before'];
+  return [...new Set(top.map(k=>PHRASES[k][dir[k]>=0?0:1]))];
+}
+function tickReplay(n){for(let i=0;i<n;i++){replay.trial.tick();if(replay.trial.done)replay.trial=makeTrial(pl,E.best,E.settings.soft);}}
+
+function advance(dt){
+  if(speed===0){ // doorspoelen: in stilte evolueren, beste poging tonen
+    const t0=performance.now();
+    while(performance.now()-t0<24){if(E.think(24)){const before=E.best;E.commit();updatePanel();if(E.best!==before&&replay)replay.trial=makeTrial(pl,E.best,E.settings.soft);}}
+    tickReplay(1);return;
+  }
+  if(replay){tickReplay(speed);return;}
+  applyPhase();
+  const tt=clockT();
+  if(ending){for(let i=0,n=stepsNow();i<n;i++)cur.trial.tick();if(tt-ending.t0>6)$('again').hidden=false;return;}
+  const behind=targetX(tt+6)-E.curX;
+  if(!sciFlags.setback&&tt>=SETBACK_AT&&!ending){sciFlags.setback=true;say('Substrate failure near target. Previous strategy no longer effective.',8);}
+  genSince+=evolveHidden((phase==='show'?7:9)+(behind>2?4:0),phase!=='show'&&genSince===0);
+  if(phase==='show'){
+    for(let i=0,n=stepsNow();i<n;i++){cur.trial.tick();if(checkEnding(cur.trial))return;}
+    const T=cur.trial;
+    if(T.mode==='grab'&&!sciFlags.grab&&T.step>90){sciFlags.grab=true;say('Submersion: chest level. Switching to secondary motor pattern: struggle.');}
+    if(T.done){const gain=T.maxX-shownX,what=curWhat.join(' and '),x=nf(T.maxX),A='Attempt '+shownN+'. ';
+      const chg=curWhat.map(bare).join(' + ');
+      let msg;
+      if(shownN===1)msg='Attempt 1. Appendages: 0. Locomotion: none.';
+      else if(curGrow){const L=T.g.limbs[T.g.limbs.length-1];const base=A+'Stuck. New appendage: '+limbWhere(L,T.g.limbs.length)+'. ';
+        const pct=Math.round(limbMass(L)/Math.max(1e-6,massOf(T.g)-limbMass(L))*100);
+        msg=gain>0.05?base+'Distance: +'+nf(gain)+' m.':T.g.limbs.length>2?base+'Mass: +'+pct+'%. Distance: unchanged.':base+'Control: not yet learned.';}
+      else if(!curWhat.length||what==='almost the same as before')msg=A+'Variations tested: '+(curTries||E.settings.think)+'. Energy depleted at '+x+' m. Improvement: none.';
+      else if(gain>0.05)msg=A+'Change: '+chg+'. Distance: '+x+' m (+'+nf(gain)+'). Retained.';
+      else if(T.maxX<shownX-0.1)msg=A+'Change: '+chg+'. Distance: '+x+' m (−'+nf(shownX-T.maxX)+'). Retained for exploration.';
+      else msg=A+'Change: '+chg+'. Energy depleted at '+x+' m. Distance: unchanged.';
+      if(T.maxX>=10.3&&!sciFlags.near){sciFlags.near=true;msg+=' Closest approach so far: '+nf(Math.max(0,HOUSE_BOX.x0-T.maxX))+' m from the door.';}
+      say(msg);
+      if(T.g===E.best)E.curX=T.maxX; // de wereld verandert: wat hij nu haalt is zijn nieuwe vertrekpunt
+      shownX=Math.max(shownX,T.maxX);phase='rest';phaseT=0;restClock=0;}
+    return;
+  }
+  phaseT+=dt*speed;restClock+=dt*speed;
+  if(phase==='rest'&&phaseT>=REST&&genSince>0){phase='fade';phaseT=0;}
+  if(phase==='fade'){fade=Math.min(1,phaseT/FADE);if(phaseT>=FADE)startShow();}
+}
+function limbWhere(L,n){if(L.parent>=0&&L.parent<n-1)return 'distal, on appendage '+(L.parent+1);
+  const c=Math.cos(L.angle),sn=Math.sin(L.angle);return Math.abs(c)>Math.abs(sn)?(c>0?'anterior':'posterior'):(sn>0?'dorsal':'ventral');}
+function bare(p){return p.replace(/^(a|an) /,'').replace(/\bits /g,'');}
+const BASE_MASS=CFG.TORSO_W*CFG.TORSO_H*CFG.TORSO_DENS+Math.PI*CFG.HEAD_R*CFG.HEAD_R*CFG.TORSO_DENS*0.6;
+function limbMass(L){return L.len*L.w*CFG.LIMB_DENS;}
+function massOf(g){return BASE_MASS+g.limbs.reduce((a,L)=>a+limbMass(L),0);}
+function bodyWidth(W){const xs=[];const tp=W.torso.getPosition();xs.push(tp.x-CFG.TORSO_W/2,tp.x+CFG.TORSO_W/2);
+  W.parts.forEach(p=>{const L=p.L,b=p.body;[-1,1].forEach(k=>xs.push(b.getWorldPoint(pl.Vec2(k*L.len/2,0)).x));});return Math.max(...xs)-Math.min(...xs);}
+// drie eindes, zodra een ervan zich voordoet
+function checkEnding(T){if(clockT()<START_AT+1||shownN<2)return false;
+  const tp=T.W.torso.getPosition(),v=T.W.torso.getLinearVelocity(),sp=Math.hypot(v.x,v.y);let type=null;
+  if(T.W.hit>1.3)type='crash';
+  else if(tp.x>HOUSE_BOX.x0-0.85&&tp.y>-0.15&&sp<0.9)type='arrive';
+  else if(tp.y<-1.35)type='sink';
+  if(!type)return false;
+  ending={type,t0:clockT()};T.steps=1e9;T.infinite=true;T.energy=1;phase='show';
+  const extra=Math.round((massOf(T.g)/BASE_MASS-1)*100);
+  say(type==='crash'?'Impact velocity: '+nf(T.W.hit)+' m/s. Structural failure. House collapsed.'
+     :type==='arrive'?'Destination reached. Body width: '+nf(bodyWidth(T.W))+' m. Door width: 0.36 m. Entry not possible.'
+     :'Mass: +'+extra+'%. Submersion: total. Substrate failure. House collapsed.',30);
+  updatePanel();return true;}
+
+function logLine(l){
+  let txt='';
+  if(l.t==='grow')txt=l.n===1?'Grows a first limb.':'Grows an extra limb ('+l.n+').';
+  if(l.t==='start')txt='Just a body and a head.';
+  if(l.t==='far')txt=nf(l.v)+' m from the house.';
+  if(l.t==='deep')txt='Sinks '+Math.round(l.v*100)+' cm deep.';
+  if(l.t==='home')txt='Reaches the house.';
+  const li=document.createElement('li');li.innerHTML='<span class="n">#'+l.a+'</span><span class="t-'+l.t+'"></span>';li.lastChild.textContent=txt;return li;
+}
+function updatePanel(){
+  $('vLimbs').textContent=E.best.limbs.length;
+  $('vBest').textContent=nf(Math.max(0,CFG.HOUSE_X-E.bestX))+' m';
+  const ol=$('log');
+  while(shownLog<E.log.length){ol.prepend(logLine(E.log[shownLog]));shownLog++;}
+  $('logEmpty').hidden=true;
+  drawSpark();
+}
+function drawSpark(){
+  const W=sp.width,H=sp.height,h=E.history;sx.clearRect(0,0,W,H);
+  if(h.length<2)return;
+  const max=CFG.HOUSE_X;
+  const X=i=>6+(W-12)*i/(h.length-1),Y=v=>H-8-(H-16)*Math.max(0,v)/max;
+  sx.fillStyle=css('--line');
+  sx.fillRect(6,Y(CFG.HOUSE_X),W-12,1); // het huis
+  sx.fillStyle=css('--muted');
+  const step=Math.max(1,Math.floor(h.length/300));
+  for(let i=0;i<h.length;i+=step)sx.fillRect(X(i)-1,Y(h[i].s)-1,2,2);
+  sx.strokeStyle=css('--accent');sx.lineWidth=2.5;sx.beginPath();
+  h.forEach((p,i)=>{i?sx.lineTo(X(i),Y(p.best)):sx.moveTo(X(i),Y(p.best));});sx.stroke();
+}
+
+// ---------- tekenen: inkt op papier, een raster dat doorbuigt ----------
+const PAPER='#ebe8e1',INK='35,29,24';
+function hash(n){n=Math.sin(n*127.1+311.7)*43758.5453;return n-Math.floor(n);}
+function nz(i,s){return hash(i*12.9898+s*78.233)*2-1;}
+function headPos(tp,ta){const oy=CFG.TORSO_H/2+CFG.HEAD_R*0.85;return {x:tp.x-oy*Math.sin(ta),y:tp.y+oy*Math.cos(ta)};}
+function pose(T){const W=T.W,tp=W.torso.getPosition(),ta=W.torso.getAngle();
+  const limbs=W.parts.map((p,i)=>{const L=p.L,b=p.body;const a=b.getWorldPoint(pl.Vec2(-L.len/2,0)),e=b.getWorldPoint(pl.Vec2(L.len/2,0));
+    return {a:{x:a.x,y:a.y},e:{x:e.x,y:e.y},w:L.w,len:L.len,i};});
+  return {tp:{x:tp.x,y:tp.y},ta,limbs,g:T.g,mood:{energy:T.infinite?1:T.energy,depth:T.depth||0,frust:T.frust||0,still:T.energy<=0&&!T.infinite}};}
+function circles(ps){const out=[];const c=Math.cos(ps.ta),s=Math.sin(ps.ta);
+  for(let k=-2;k<=2;k++){const lx=k*0.2;out.push({x:ps.tp.x+lx*c,y:ps.tp.y+lx*s,r:0.3});}
+  const hp=headPos(ps.tp,ps.ta);out.push({x:hp.x,y:hp.y,r:CFG.HEAD_R});
+  for(const l of ps.limbs){const n=Math.max(2,Math.ceil(l.len/0.15));for(let k=0;k<=n;k++){const t=k/n;out.push({x:l.a.x+(l.e.x-l.a.x)*t,y:l.a.y+(l.e.y-l.a.y)*t,r:l.w/2+0.04});}}
+  return out;}
+function chainOf(ps){return ps.limbs.map((l,i)=>{const pts=[{x:l.e.x,y:l.e.y},{x:l.a.x,y:l.a.y}];let p=ps.g.limbs[i].parent;
+  while(p>=0&&p<i){const q=ps.limbs[p];pts.push({x:q.a.x,y:q.a.y});p=ps.g.limbs[p].parent;}pts.push({x:ps.tp.x,y:ps.tp.y});return pts.reverse();});}
+function drawFigure(ctx,ps,P,scale,u,boil,t,lw){
+  ctx.strokeStyle=`rgb(${INK})`;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=lw;
+  const jit=(i)=>nz(i,boil)*0.012;
+  const line=(pts)=>{ctx.beginPath();pts.forEach((p,k)=>{const [x,y]=P(p.x+jit(k*3+p.x*50|0),p.y+jit(k*5+p.y*50|0));
+    if(k===0)ctx.moveTo(x,y);else{const q=pts[k-1];const [qx,qy]=P(q.x,q.y);ctx.quadraticCurveTo(qx,qy,(qx+x)/2,(qy+y)/2);}});
+    const l=pts[pts.length-1];const [lx,ly]=P(l.x,l.y);ctx.lineTo(lx,ly);ctx.stroke();};
+  const hp=headPos(ps.tp,ps.ta),c=Math.cos(ps.ta),s=Math.sin(ps.ta);
+  const loc=(lx,ly)=>({x:ps.tp.x+lx*c-ly*s,y:ps.tp.y+lx*s+ly*c});
+  for(let r=0;r<2;r++){ctx.beginPath();const N=26,hw=CFG.TORSO_W/2,hh=CFG.TORSO_H/2;
+    for(let k=0;k<=N;k++){const a=k/N*Math.PI*2,c0=Math.cos(a),s0=Math.sin(a);
+      const lx=Math.sign(c0)*Math.pow(Math.abs(c0),0.55)*hw*(1+nz(k%N+r*40,boil)*0.03),ly=Math.sign(s0)*Math.pow(Math.abs(s0),0.7)*hh*(1+nz(k%N+r*40+7,boil)*0.04);
+      const p=loc(lx,ly);const [x,y]=P(p.x,p.y);k?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+  chainOf(ps).forEach((ch,i)=>{const e=ch[ch.length-1],p=ch[ch.length-2];const dx=e.x-p.x,dy=e.y-p.y,L=Math.hypot(dx,dy)||1;
+    line(ch.slice(1).concat([{x:e.x+dx/L*0.05,y:e.y+dy/L*0.05}]));});
+  // nek en hoofd: kijkt naar het huis, kijkt omlaag als hij wegzakt, laat het hoofd hangen als hij op is
+  const md=ps.mood||{energy:1,depth:0,frust:0};
+  let want=0.18;                                            // licht vooruit, naar het huis
+  if(md.depth>0.25)want=0.55;                               // omlaag, naar de modder
+  if(md.energy<0.2)want=0.55+(0.2-md.energy)*3.5;           // moe: hoofd zakt
+  if(md.still)want=1.25;                                    // op: hoofd hangt
+  want+=md.frust*md.frust*0.28*Math.sin(t*19);              // woedend: schudden
+  ps.g._phi=(ps.g._phi==null?want:ps.g._phi+(want-ps.g._phi)*0.08);const phi=ps.g._phi;
+  const nb=loc(0,CFG.TORSO_H/2*0.92),ux=-Math.sin(ps.ta),uy=Math.cos(ps.ta),fx=Math.cos(ps.ta),fy=Math.sin(ps.ta);
+  const dX=fx*Math.sin(phi)+ux*Math.cos(phi),dY=fy*Math.sin(phi)+uy*Math.cos(phi),NECK=0.13;
+  const ne={x:nb.x+dX*NECK,y:nb.y+dY*NECK},hc={x:nb.x+dX*(NECK+CFG.HEAD_R*0.95),y:nb.y+dY*(NECK+CFG.HEAD_R*0.95)};
+  line([nb,{x:(nb.x+ne.x)/2+fx*0.01,y:(nb.y+ne.y)/2},ne]);
+  const R=CFG.HEAD_R*scale*1.05;const [hx,hy]=P(hc.x,hc.y),ha=-(Math.atan2(dY,dX)-Math.PI/2);
+  ctx.beginPath();for(let k=0;k<=24;k++){const a=k/24*Math.PI*2;const rr=R*(1+nz(k%24,boil)*0.04);const lx=Math.cos(a)*rr*0.86,ly=Math.sin(a)*rr*1.08;
+    const x=hx+lx*Math.cos(ha)-ly*Math.sin(ha),y=hy+lx*Math.sin(ha)+ly*Math.cos(ha);k?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+}
+function drawHouse(ctx,P,u,boil,lw){
+  const hx=CFG.HOUSE_X+0.4,hw=1.7,hh=1.1;ctx.strokeStyle=`rgb(${INK})`;ctx.lineWidth=lw;ctx.lineJoin='round';
+  for(let r=0;r<2;r++){ctx.beginPath();[[hx,0],[hx,hh],[hx+hw/2,hh+0.82],[hx+hw,hh],[hx+hw,0]].forEach((c,i)=>{let [x,y]=P(c[0],c[1]);x+=nz(i+r*9,boil)*1.5*u;y+=nz(i+r*9+4,boil)*1.5*u;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();}
+  const [x0,y0]=P(hx+0.32,0.82),[x1,y1]=P(hx+0.74,0.44);ctx.fillStyle='#d98a2b';ctx.fillRect(x0,y0,x1-x0,y1-y0);
+  const [d0,d1]=P(hx+1.04,0.76),[d2,d3]=P(hx+1.4,0);ctx.beginPath();ctx.moveTo(d0,d3);ctx.lineTo(d0,d1);ctx.lineTo(d2,d1);ctx.lineTo(d2,d3);ctx.stroke();
+}
+const ease=k=>{k=Math.max(0,Math.min(1,k));return k*k*(3-2*k);};
+function finaleT(){return songEnded?999:songT();}
+// het huis als losse stukken, zodat het kan bezwijken
+const HOUSE_PIECES=(()=>{const hx=CFG.HOUSE_X+0.4,hw=1.7,hh=1.1,rh=0.82;
+  const seg=(x1,y1,x2,y2,fx,fy,fa,delay)=>({a:[x1,y1],b:[x2,y2],c0:[(x1+x2)/2,(y1+y2)/2],c1:[fx,fy],ang:fa,delay});
+  return [
+    seg(hx,0,hx,hh, hx-hh/2-0.05,0.04, Math.PI/2+0.05, 0.25),          // linkermuur valt naar links
+    seg(hx+hw,0,hx+hw,hh, hx+hw+hh/2+0.1,0.04,-Math.PI/2-0.08, 0.45),  // rechtermuur valt naar rechts
+    seg(hx,hh,hx+hw/2,hh+rh, hx+0.55,0.32, -0.42, 0.05),                // dak links glijdt naar beneden
+    seg(hx+hw/2,hh+rh,hx+hw,hh, hx+1.2,0.22, 0.55, 0.0),                // dak rechts
+    seg(hx+1.04,0,hx+1.04,0.76, hx+1.6,0.03,-1.45,0.6),                 // deurstijl
+    seg(hx+1.04,0.76,hx+1.4,0.76, hx+0.95,0.05,0.3,0.7),                // deurlatei
+    seg(hx+1.4,0.76,hx+1.4,0, hx+2.1,0.03,1.5,0.5)];})();
+const WINDOW={x0:CFG.HOUSE_X+0.4+0.32,y0:0.44,w:0.42,h:0.38,c1:[CFG.HOUSE_X+0.4+0.7,0.12],ang:0.35,delay:0.35};
+// het huis (heel of in brokstukken) in wereldcoördinaten, plus de cirkels waarmee het gewicht op het raster legt
+function houseGeom(){
+  const tc=collapseT(),sh=shakeAmount(),sinkP=Math.max(0,Math.min(3.2,Math.pow(Math.max(0,collapseT()-2),1.4)*0.12));
+  const jx=nz(frame,3)*0.05*sh,jy=nz(frame,7)*0.02*sh;
+  const prog=(d)=>{const k=Math.max(0,Math.min(1,(tc-d)/0.9));return k*k;};
+  const place=(p,x,y,k)=>{const cx0=p.c0[0],cy0=p.c0[1],dx=x-cx0,dy=y-cy0,a=p.ang*k,ca=Math.cos(a),sa=Math.sin(a);
+    const cxk=cx0+(p.c1[0]-cx0)*k+jx,cyk=cy0+(p.c1[1]-cy0)*k+jy-sinkP*(k>0.99?1:0);
+    return [cxk+dx*ca-dy*sa,cyk+dx*sa+dy*ca];};
+  const segs=[],circles=[];
+  for(const p of HOUSE_PIECES){const k=prog(p.delay);const A=place(p,p.a[0],p.a[1],k),B=place(p,p.b[0],p.b[1],k);segs.push([A,B]);
+    // gewicht: een staand huis drukt licht op zijn fundering, een gevallen brokstuk drukt waar het ligt
+    const m=0.05+0.12*k+0.1*Math.min(1,sinkP);
+    for(let q=0;q<=2;q++){const f=q/2;circles.push({x:A[0]+(B[0]-A[0])*f,y:A[1]+(B[1]-A[1])*f,r:0.16,m,house:true});}}
+  const w=WINDOW,k=prog(w.delay);const pw={c0:[w.x0+w.w/2,w.y0+w.h/2],c1:w.c1,ang:w.ang};
+  const win=[[w.x0,w.y0],[w.x0+w.w,w.y0],[w.x0+w.w,w.y0+w.h],[w.x0,w.y0+w.h]].map(q=>place(pw,q[0],q[1],k));
+  return {segs,win,circles};
+}
+function drawHouseGeom(ctx,hg,M,u,boil,lw){
+  ctx.strokeStyle=`rgb(${INK})`;ctx.lineWidth=lw;ctx.lineCap='round';ctx.lineJoin='round';
+  hg.segs.forEach(([A,B],i)=>{for(let r=0;r<2;r++){ctx.beginPath();
+    for(let q=0;q<=6;q++){const f=q/6;const [x,y]=M(A[0]+(B[0]-A[0])*f,A[1]+(B[1]-A[1])*f);
+      const jx=nz(i*13+r*5+q,boil)*1.2*u,jy=nz(i*7+r*3+q+50,boil)*1.2*u;q?ctx.lineTo(x+jx,y+jy):ctx.moveTo(x+jx,y+jy);}ctx.stroke();}});
+  ctx.fillStyle='#d98a2b';ctx.beginPath();hg.win.forEach((q,i)=>{const [x,y]=M(q[0],q[1]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.fill();
+}
+function sinkAmount(){return ease((finaleT()-153)/(176-153));}
+function endClock(){return ending?clockT()-ending.t0:-1;}
+function collapseAt(){return !ending?Infinity:ending.type==='sink'?4.5:ending.type==='crash'?0.8:Infinity;}
+function softAmount(){const a=ease((finaleT()-153)/9),b=ending&&ending.type==='sink'?ease(endClock()/6):0;return Math.max(a,b);}      // laatste refrein: de modder wordt zachter
+function shakeAmount(){const e=endClock(),c=collapseAt();if(e<0||c===Infinity)return 0;const s0=Math.max(0,c-3);return e<s0?0:e<c?(e-s0)/Math.max(0.3,c-s0):Math.max(0,1-(e-c)/1.5);}
+function collapseT(){const e=endClock(),c=collapseAt();return e<0||c===Infinity?0:Math.max(0,e-c);}
+function dropAmount(){return ease((finaleT()-168)/11);}     // 2:48 - 2:59 alles zakt weg
+// ---------- vogels (couplet 1 en 2) en spinnen (couplet 3 en 4) ----------
+const BIRD_IN=12,BIRD_OUT=66,SPIDER_IN=90,SPIDER_HOME=138;
+let birds=[],birdsT=-1;
+function resetBirds(){birds=[];for(let i=0;i<340;i++){const a=hash(i)*6.28,r=Math.sqrt(hash(i+500))*1.4;
+  birds.push({x:-5+Math.cos(a)*r*1.6,y:2.3+Math.sin(a)*r*0.6,vx:0.8,vy:nz(i,4)*0.1,ph:hash(i+900)*6.28});}}
+function birdGoal(t){const tt=t-BIRD_IN;
+  if(t<BIRD_IN+6)return {x:-4+tt*1.2,y:2.2};                 // komen van links binnen
+  if(t>BIRD_OUT-4)return {x:3+(t-(BIRD_OUT-4))*1.6+6,y:2.6};  // vliegen rechts weg
+  return {x:6+4.2*Math.sin(tt*0.045-1.2),y:2.15+0.4*Math.sin(tt*0.083+1)};}
+function flockStep(dt,t){
+  const goal=birdGoal(t),cell=0.6,grid=new Map();
+  birds.forEach((b,i)=>{const k=Math.floor(b.x/cell)+','+Math.floor(b.y/cell);(grid.get(k)||grid.set(k,[]).get(k)).push(i);});
+  for(const b of birds){let cx0=0,cy0=0,ax=0,ay=0,sx=0,sy=0,n=0;const gx=Math.floor(b.x/cell),gy0=Math.floor(b.y/cell);
+    for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){const l=grid.get((gx+i)+','+(gy0+j));if(!l)continue;
+      for(const k of l){const o=birds[k];if(o===b)continue;const dx=o.x-b.x,dy=o.y-b.y,d2=dx*dx+dy*dy;if(d2>0.36)continue;
+        cx0+=o.x;cy0+=o.y;ax+=o.vx;ay+=o.vy;n++;if(d2<0.014){sx-=dx/(d2+1e-4)*0.004;sy-=dy/(d2+1e-4)*0.004;}}}
+    if(n){b.vx+=((cx0/n-b.x)*0.5+(ax/n-b.vx)*0.9)*dt;b.vy+=((cy0/n-b.y)*0.5+(ay/n-b.vy)*0.9)*dt;}
+    b.vx+=sx*dt*60;b.vy+=sy*dt*60;b.vx+=(goal.x-b.x)*0.06*dt;b.vy+=(goal.y-b.y)*0.12*dt;
+    if(b.y<1.2)b.vy+=(1.2-b.y)*1.2*dt;if(b.y>3.2)b.vy-=(b.y-3.2)*1.2*dt;
+    const sp=Math.hypot(b.vx,b.vy),lo=0.55,hi=1.0;if(sp<lo||sp>hi){const k=Math.max(lo,Math.min(hi,sp))/sp;b.vx*=k;b.vy*=k;}
+    b.x+=b.vx*dt;b.y+=b.vy*dt;}}
+function drawBirds(ctx,P,u,t){
+  ctx.strokeStyle=`rgba(${INK},0.88)`;ctx.lineWidth=1.4*u;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();
+  for(const b of birds){const [x,y]=P(b.x,b.y);if(x<-30||x>cv.width+30)continue;
+    const f=b.vx>=0?1:-1,L=7.5*u,flap=Math.sin(t*7+b.ph);
+    const up=0.55+0.45*flap,tilt=Math.max(-0.4,Math.min(0.4,-b.vy*0.6));
+    // linkervleugel kort, rechtervleugel lang en hoger, allebei licht gewelfd
+    const lx=x-f*0.75*L,ly=y-up*0.55*L+tilt*L*0.3,rx=x+f*1.0*L,ry=y-up*0.8*L-tilt*L*0.3;
+    ctx.moveTo(lx,ly);ctx.quadraticCurveTo(x-f*0.3*L,y+0.05*L,x,y);ctx.quadraticCurveTo(x+f*0.42*L,y+0.02*L,rx,ry);}
+  ctx.stroke();}
+
+const SHX=CFG.HOUSE_X+0.4,SHW=1.7,SHH=1.1,SRH=0.82;
+const EDGES=[[[SHX,0],[SHX,SHH]],[[SHX,SHH],[SHX+SHW/2,SHH+SRH]],[[SHX+SHW/2,SHH+SRH],[SHX+SHW,SHH]],[[SHX+SHW,SHH],[SHX+SHW,0]],
+  [[SHX+1.04,0],[SHX+1.04,0.76]],[[SHX+1.04,0.76],[SHX+1.4,0.76]],[[SHX+1.4,0.76],[SHX+1.4,0]],
+  [[SHX+0.32,0.44],[SHX+0.32,0.82]],[[SHX+0.32,0.82],[SHX+0.74,0.82]],[[SHX+0.74,0.82],[SHX+0.74,0.44]],[[SHX+0.74,0.44],[SHX+0.32,0.44]]];
+const DOOR={x:SHX+1.22,y:0.06},PEAK={x:SHX+SHW/2,y:SHH+SRH-0.02};
+let spiders=[];
+function randomOnHouse(i,maxY){for(let k=0;k<20;k++){const e=EDGES[Math.floor(hash(i*7.3+k*1.7+frame*0.013)*EDGES.length)],q=hash(i*3.1+k+frame*0.021);
+  const x=e[0][0]+(e[1][0]-e[0][0])*q,y=e[0][1]+(e[1][1]-e[0][1])*q;if(y<=maxY)return {x,y};}return {x:SHX+SHW/2,y:0.5};}
+function spiderPos(s){return {x:s.x,y:s.y};}
+function spiderStep(dt,t){
+  const want=t<SPIDER_IN?0:Math.min(9,1+Math.floor((t-SPIDER_IN)/4.5));
+  // ze komen een voor een bovenaan het huis binnen
+  while(t<SPIDER_HOME&&spiders.filter(s=>s.state!=='gone').length<want){const i=spiders.length;
+    const first=randomOnHouse(i+50,SHH+0.4);
+    spiders.push({state:'walk',x:PEAK.x+nz(i,9)*0.03,y:PEAK.y,tx:first.x,ty:first.y,pause:0,sp:0.07+hash(i+17)*0.05,ph:hash(i)*6,i,ang:-Math.PI/2});}
+  for(const s of spiders){
+    if(s.state==='gone')continue;
+    if(s.state==='walk'&&t>=SPIDER_HOME+s.i*1.2){s.state='home';s.tx=DOOR.x;s.ty=DOOR.y;s.pause=0;}
+    if(s.pause>0){s.pause-=dt;continue;}
+    const dx=s.tx-s.x,dy=s.ty-s.y,d=Math.hypot(dx,dy);
+    if(d<0.01){if(s.state==='home'){s.state='gone';continue;}
+      s.pause=0.4+hash(frame*0.7+s.ph)*1.6;const n=randomOnHouse(s.i+frame,SHH+SRH);s.tx=n.x;s.ty=n.y;continue;}
+    const step=Math.min(d,s.sp*(s.state==='home'?1.6:1)*dt);s.x+=dx/d*step;s.y+=dy/d*step;s.ang=Math.atan2(-dy,dx);}}
+function spiderShape(ctx,x,y,ang,size,t,ph,moving){
+  ctx.fillStyle=`rgb(${INK})`;ctx.beginPath();ctx.ellipse(x,y,size*0.9,size*0.7,ang,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(x+Math.cos(ang)*size*1.1,y+Math.sin(ang)*size*1.1,size*0.45,0,7);ctx.fill();
+  ctx.beginPath();
+  for(let k=0;k<4;k++)for(const side of [-1,1]){const base=ang+side*(0.9+k*0.38);const wig=moving?Math.sin(t*14+ph+k*1.6+(side>0?Math.PI:0))*0.25:0;
+    const kx=x+Math.cos(base+wig)*size*1.8,ky=y+Math.sin(base+wig)*size*1.8,ex=x+Math.cos(base+wig*1.4+side*0.35)*size*2.8,ey=y+Math.sin(base+wig*1.4+side*0.35)*size*2.8+size*0.6;
+    ctx.moveTo(x,y);ctx.lineTo(kx,ky);ctx.lineTo(ex,ey);}
+  ctx.stroke();}
+function drawSpiders(ctx,M,u,t){
+  const size=0.95*u;ctx.strokeStyle=`rgba(${INK},0.9)`;ctx.lineWidth=Math.max(0.6,size*0.28);ctx.lineCap='round';
+  for(const s of spiders){if(s.state==='gone')continue;const [px,py]=M(s.x,s.y);
+    spiderShape(ctx,px,py,s.ang||0,size,t,s.ph,s.pause<=0);}}
+let animLast=0;
+function stepAnimals(){const t=songT();const now=performance.now();const dt=Math.min(0.05,(now-(animLast||now))/1000);animLast=now;
+  if(!playing&&!(t>0)){return;}
+  if(t<BIRD_IN-2||birdsT<0||t<birdsT-1){if(t<BIRD_IN)resetBirds();if(t<SPIDER_IN)spiders=[];}
+  birdsT=t;if(!birds.length)resetBirds();
+  if(t>=BIRD_IN-1&&t<BIRD_OUT+14&&!paused)flockStep(dt,t);
+  if(t>=SPIDER_IN&&!paused)spiderStep(dt,t);}
+
+function sectionNow(){const t=songT();let n=SECTIONS[0][1];for(const [s0,nm] of SECTIONS)if(t>=s0)n=nm;return n;}
+
+function draw(){
+  frame++;
+  const T=replay?replay.trial:cur.trial;
+  const Wd=cv.width,Hd=cv.height,scale=Wd/16,gy=Hd*0.40,u=scale/100,boil=Math.floor(frame/6),t=frame/60;
+  const sink=sinkAmount();applyPhase();
+  // einde: de grondlijn zakt steeds dieper, het huis en de modder schuiven mee naar beneden
+  const groundDrop=0; // de grondlijn blijft liggen; alleen hij en het huis zakken weg
+  const P0=(x,y)=>[(x+1.5)*scale,gy-y*scale];
+  const P=(x,y)=>P0(x,y-groundDrop);            // alles wat op of in de grond staat
+  const dropAt=(y)=>y<=0?groundDrop:groundDrop*Math.exp(-y/2.2); // het raster rekt mee uit
+  const PG=(x,y)=>P0(x,y-dropAt(y));
+  cx.fillStyle=PAPER;cx.fillRect(0,0,Wd,Hd);
+  const ps=pose(T);
+  // tussen pogingen: hij zakt eerst weg in de modder, de volgende poging valt van boven in beeld
+  let dyVis=0,vis=1;
+  if(!replay&&!finale&&E&&shownN>0&&phase!=='show'){const k=ease(restClock/(REST+FADE));dyVis=-3.4*k;vis=1-ease((k-0.55)/0.45);}
+  else if(!replay&&E&&shownN===0&&phase!=='show'){vis=0;}
+  else if(!replay&&!finale&&E&&phase==='show'&&T.step<48){dyVis=Math.pow(1-T.step/48,2)*5.5;}
+  if(dyVis){ps.tp.y+=dyVis;ps.limbs.forEach(l=>{l.a.y+=dyVis;l.e.y+=dyVis;});}
+  const cs=circles(ps);
+  // gewicht op het raster: volgt zijn echte massa, bouwt traag op en wordt gedeeld over al zijn lichaamsdelen
+  const rel=massOf(T.g)/BASE_MASS,targetW=Math.min(0.5,0.2+0.12*(rel-1))*(1+sink*0.8);
+  gridW+=(targetW-gridW)*0.015;
+  const totR=cs.reduce((a,c)=>a+c.r,0)||1,mass=gridW*vis*Math.sqrt(1.74/totR);
+  const hg=houseGeom(),allC=cs.concat(hg.circles);
+  const warp=(x,y)=>{let dx=0,dy=0;for(const c of allC){const ddx=c.x-x,ddy=c.y-y,d2=ddx*ddx+ddy*ddy;const f=Math.exp(-d2/1.6)*c.r*(c.m!==undefined?c.m:mass);dx+=c.house?0:ddx*f*0.6;dy+=ddy*f*0.6-f*1.2;}
+    dx=0.6*Math.tanh(dx/0.6);dy=1.0*Math.tanh(dy/1.0); // nooit krullen: de vervorming vlakt zacht af
+    if(y<0.05&&inMud(x)){const depth=Math.min(1,-y/2);dy-=0.04*Math.sin(x*1.3+t*0.3)*depth;}return [x+dx,y+dy];};
+  const st=0.32;cx.lineWidth=0.9*u;
+  const row=(y0)=>{cx.beginPath();for(let x=-1.8;x<=14.8;x+=0.12){const [wx,wy]=warp(x,y0);const [px,py]=PG(wx,wy);x>-1.8?cx.lineTo(px,py):cx.moveTo(px,py);}cx.stroke();};
+  const col=(x0)=>{cx.beginPath();for(let y=-6.4;y<=12;y+=0.12){const [wx,wy]=warp(x0,y);const [px,py]=PG(wx,wy);y>-6.4?cx.lineTo(px,py):cx.moveTo(px,py);}cx.stroke();};
+  for(let y=-6.4;y<=12;y+=st){const air=y>0.01;cx.strokeStyle=`rgba(${INK},${air?0.22:0.5})`;row(y);}
+  for(let x=-1.8;x<=14.8;x+=st){cx.strokeStyle=`rgba(${INK},0.32)`;col(x);}
+  cx.strokeStyle=`rgba(${INK},0.9)`;cx.lineWidth=1.8*u;row(0);
+  // verste punt ooit: een fijne stippellijn
+  if(E&&E.bestX>0.3&&sink<0.1){const [x,y]=P(E.bestX,0);cx.setLineDash([4*u,6*u]);cx.strokeStyle=`rgba(${INK},0.5)`;cx.lineWidth=1*u;cx.beginPath();cx.moveTo(x,y-scale*1.2);cx.lineTo(x,y);cx.stroke();cx.setLineDash([]);}
+  drawHouseGeom(cx,hg,(x,y)=>{const [wx,wy]=warp(x,y);return P(wx,wy);},u,boil,1.6*u);
+  stepAnimals();
+  {const tA=songT();if((playing||tA>0)&&tA>=SPIDER_IN&&tA<160)drawSpiders(cx,(x,y)=>{const [wx,wy]=warp(x,y);return P(wx,wy);},u,t);
+   if((playing||tA>0)&&tA>=BIRD_IN-1&&tA<BIRD_OUT+14)drawBirds(cx,P,u,t);}
+  cx.globalAlpha=vis;drawFigure(cx,ps,P,scale,u,boil,t,1.8*u);cx.globalAlpha=1;
+  // hud
+  const st2=songT();$('sTime').textContent=fmt(st2)+' / 3:01';$('fill').style.width=(st2/SONG_LEN*100)+'%';
+  document.querySelectorAll('.track .sec').forEach((d,i)=>d.classList.toggle('on',st2>=SECTIONS[i][0]&&(!SECTIONS[i+1]||st2<SECTIONS[i+1][0])&&playing));
+  $('hSec').textContent=playing?sectionNow()+' · attempt':'Attempt';
+  if(!E){$('hAttempt').textContent='–';$('hVerdict').textContent='Press Start.';updateCaption();return;}
+  if(!replay){$('hAttempt').textContent=Math.max(1,shownN);}else{$('hAttempt').textContent=replay.auto?'best so far':'best';}
+  const m=$('hMode');
+  if(!replay&&phase!=='show'){m.textContent=status;m.classList.remove('grab');}
+  else if(replay){m.textContent=T.mode==='grab'?'Struggles in the mud.':'Walks toward the house.';m.classList.toggle('grab',T.mode==='grab');}
+  else if(finale){const ft=finaleT();m.textContent=status=ft<158?'The mud gets softer. He sinks.':ft<164?'He struggles. The house starts to shake.':ft<168?'The house gives way.':'Everything sinks.';m.classList.add('grab');}
+  else{const w=curWhat.join(' and ');
+    const doing=T.mode==='grab'?'Struggles in the mud':'Walks toward the house';
+    m.textContent=curGrow?doing+', with a new limb.':w&&w!=='almost the same as before'?doing+', trying '+w+'.':doing+'.';m.classList.toggle('grab',T.mode==='grab');}
+  $('hVerdict').textContent=paused&&!playing&&!songEnded?'Press Start.':songEnded?'Everything has sunk.':replay&&replay.auto?'He keeps evolving in silence: attempt '+E.attempt+'.':'';
+  updateCaption();
+  const tx=T.W.torso.getPosition();$('hLift').textContent=nf(Math.max(0,CFG.HOUSE_X-tx.x))+' m';
+  $('hDepth').textContent='depth '+Math.round((T.depth||0)*100)+' cm';
+  $('hTime').textContent='energy '+Math.round((T.infinite?1:T.energy)*100)+'%';
+  $('hFrust').textContent='frustration '+Math.round((T.frust||0)*100)+'%';
+}
+
+let last=performance.now(),gridW=0.2;
+function loop(now){const dt=Math.min(0.1,(now-last)/1000);last=now;if(!paused&&E&&!(songEnded&&!ending)&&!(playing&&songT()<START_AT))advance(dt);draw();requestAnimationFrame(loop);}
+syncOut();
+// ---------- opstartsequentie: titel, intro, log, startknop ----------
+(function boot(){
+  const el=$('boot'),intro=$('bootIntro');document.documentElement.style.overflow='hidden';
+  const pad=n=>String(n).padStart(3,'0'),f2=v=>(+v).toFixed(2);
+  const INTRO=['This artificial life simulation is not animated.',
+    'The organism has a body and a head. He has never moved before, but he has been programmed to learn.',
+    'When he gets stuck, he grows extra limbs and tries new movements.',
+    'He has one objective: reach the house on the other side of the mud.',
+    'Every outcome will be different.'];
+  const lines=[
+    ['Initialising evolutionary run '+pad(runNo),''],
+    ['Seed',String(nextSeed).padStart(6,'0')],
+    ['Environment','viscous substrate, gravity 9.81 m/s²'],
+    ['Specimen','1 body, 1 head, 0 appendages'],
+    ['Fitness function','distance to home'],
+    ['Learning mode','wisdom '+f2($('sWis').value)+' / boldness '+f2($('sBold').value)],
+    ['Generation 0. Ready.','']];
+  const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let done=false,timer=null;
+  function esc(x){return x.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+  const cur='<span class="cur"></span>';
+  const introHTML=(n,partial)=>INTRO.slice(0,n).map((t,i)=>'<p>'+esc(i===n-1&&partial!=null?t.slice(0,partial):t)+(i===n-1&&partial!=null?cur:'')+'</p>').join('');
+  const logHTML=(n,partial)=>lines.slice(0,n).map(([k,v],i)=>{const t=v?k+': '+v:k;const txt=(i===n-1&&partial!=null)?t.slice(0,partial):t;
+    const c=txt.indexOf(': ');return c>0&&v?'<span class="k">'+esc(txt.slice(0,c+1))+'</span>'+esc(txt.slice(c+1)):esc(txt);}).join('\n');
+  function finish(){if(done)return;done=true;clearTimeout(timer);$('bootCredit').classList.remove('pending');
+    intro.innerHTML=introHTML(INTRO.length);$('bBoot').hidden=false;try{$('bBoot').focus({preventScroll:true});}catch(e){}}
+  function go(){finish();document.documentElement.style.overflow='';el.hidden=true;startRun();} // harde cut naar het veld, en de run begint
+  $('bBoot').addEventListener('click',e=>{e.stopPropagation();go();});
+  if(reduce){finish();}
+  else{
+    setTimeout(()=>$('bootCredit').classList.remove('pending'),300);
+    let li=0,ci=0,stage='intro';
+    const tick=()=>{if(done)return;
+      if(stage==='intro'){const full=INTRO[li];ci+=1;intro.innerHTML=introHTML(li+1,Math.min(ci,full.length));
+        if(ci>=full.length){li++;ci=0;if(li>=INTRO.length){timer=setTimeout(finish,700);return;}timer=setTimeout(tick,650);return;}
+        timer=setTimeout(tick,32);return;}
+      const [k,v]=lines[li],full=v?k+': '+v:k;ci+=2;log.innerHTML=logHTML(li+1,Math.min(ci,full.length))+cur;
+      if(ci>=full.length){li++;ci=0;if(li>=lines.length){finish();return;}timer=setTimeout(tick,li===1?500:260);return;}
+      timer=setTimeout(tick,24);};
+    timer=setTimeout(tick,1400);}
+  // klikken of een toets slaat het typen over; de startknop start de simulatie
+  el.addEventListener('click',()=>{if(!done)finish();});
+  window.addEventListener('keydown',function k(e){if(!done){finish();e.preventDefault();}});
+})();
+if(!pl){$('caption').innerHTML='<span>The physics library could not load. Reload the page.</span>';$('caption').classList.add('on');return;}
+E=null;cur={trial:makeTrial(pl,{freq:0.5,limbs:[]},1)};requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
